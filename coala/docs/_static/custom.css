@@ -1,0 +1,19 @@
+/*
+ * custom.css
+ * ~~~~~~~~~
+ *
+ * Custom stylesheet
+ *
+ */
+
+.sphinxsidebar .caption-text {
+    font-size: 120%;
+}
+
+.logo {
+    width: 100%;
+}
+
+.sphinxsidebarwrapper .internal, .sphinxsidebarwrapper .external{
+    font-weight: bold;
+}
