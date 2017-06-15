@@ -1,3 +1,5 @@
+import re
+
 from inspect import getmembers, signature
 
 from coala_utils.decorators import generate_repr
@@ -11,7 +13,7 @@ class aspectclass(type):
     """
     Metaclass for aspectclasses.
 
-    Root aspectclass is :class:`coalib.bearlib.aspectclasses.Root`.
+    Root aspectclass is :class:`coalib.bearlib.aspects.Root`.
     """
     def __init__(cls, clsname, bases, clsattrs):
         """
@@ -23,7 +25,7 @@ class aspectclass(type):
     def tastes(cls):
         """
         Get a dictionary of all taste names mapped to their
-        :class:`coalib.bearlib.aspectclasses.Taste` instances.
+        :class:`coalib.bearlib.aspects.Taste` instances.
         """
         if cls.parent:
             return dict(cls.parent.tastes, **cls._tastes)
@@ -34,7 +36,7 @@ class aspectclass(type):
         """
         The sub-aspectclass decorator.
 
-        See :class:`coalib.bearlib.aspectclasses.Root` for description
+        See :class:`coalib.bearlib.aspects.Root` for description
         and usage.
         """
         aspectname = subcls.__name__
@@ -44,7 +46,7 @@ class aspectclass(type):
             attr: getattr(docs, attr, '') for attr in
             list(signature(Documentation).parameters.keys())[1:]})
 
-        # search for tastes int the sub-aspectclass
+        # search for tastes in the sub-aspectclass
         subtastes = {}
         for name, member in getmembers(subcls):
             if isinstance(member, Taste):
@@ -72,3 +74,48 @@ class aspectclass(type):
 
     def __repr__(cls):
         return '<%s %s>' % (type(cls).__name__, repr(cls.__qualname__))
+
+
+class aspectTypeError(TypeError):
+    """
+    This error is raised when an object is not an ``aspectclass`` or an
+    instance of ``aspectclass``
+    """
+
+    def __init__(self, item):
+        self.item = item
+        message = ('{} is not an aspectclass or an instance of an '
+                   'aspectclass'.format(repr(self.item)))
+        super().__init__(message)
+
+
+def isaspect(item):
+    """
+    This function checks whether or not an object is an ``aspectclass`` or an
+    instance of ``aspectclass``
+    """
+    return isinstance(item, (aspectclass, aspectbase))
+
+
+def assert_aspect(item):
+    """
+    This function raises ``aspectTypeError`` when an object is not an
+    ``aspectclass`` or an instance of ``aspectclass``
+    """
+    if not isaspect(item):
+        raise aspectTypeError(item)
+    return item
+
+
+def issubaspect(subaspect, aspect):
+    """
+    This function checks whether or not ``subaspect`` is a subaspect of
+    ``aspect``.
+    """
+    subaspect = assert_aspect(subaspect)
+    aspect = assert_aspect(aspect)
+    aspect_qualname = (aspect.__qualname__ if isinstance(
+                    aspect, aspectclass) else type(aspect).__qualname__)
+    subaspect_qualname = (subaspect.__qualname__ if isinstance(
+                    subaspect, aspectclass) else type(subaspect).__qualname__)
+    return re.match(aspect_qualname+'(\.|$)', subaspect_qualname) is not None

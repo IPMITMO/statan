@@ -8,6 +8,7 @@ from coalib.misc.Exceptions import get_exitcode
 from coalib.output.Interactions import fail_acquire_settings
 from coalib.output.printers.LogPrinter import LogPrinter
 from coalib.output.printers.LOG_LEVEL import LOG_LEVEL
+from coalib.output.Logging import CounterHandler
 from coalib.processes.Processing import execute_section, simplify_section_result
 from coalib.settings.ConfigurationGathering import gather_configuration
 from coalib.misc.Caching import FileCache
@@ -28,7 +29,9 @@ def run_coala(console_printer=None,
               autoapply=True,
               force_show_patch=False,
               arg_parser=None,
-              arg_list=None):
+              arg_list=None,
+              args=None,
+              debug=False):
     """
     This is a main method that should be usable for almost all purposes and
     reduces executing coala to one function call.
@@ -59,6 +62,10 @@ def run_coala(console_printer=None,
     :param arg_parser:              Instance of ArgParser that is used to parse
                                     non-setting arguments.
     :param arg_list:                The CLI argument list.
+    :param args:                    Alternative pre-parsed CLI arguments.
+    :param debug:                   Run in debug mode, bypassing
+                                    multiprocessing, and not catching any
+                                    exceptions.
     :return:                        A dictionary containing a list of results
                                     for all analyzed sections as key.
     """
@@ -68,6 +75,7 @@ def run_coala(console_printer=None,
         else log_printer)
 
     exitcode = 0
+    sections = {}
     results = {}
     file_dicts = {}
     try:
@@ -77,7 +85,8 @@ def run_coala(console_printer=None,
             acquire_settings,
             log_printer,
             arg_parser=arg_parser,
-            arg_list=arg_list)
+            arg_list=arg_list,
+            args=args)
 
         log_printer.debug('Platform {} -- Python {}, coalib {}'
                           .format(platform.system(), platform.python_version(),
@@ -109,7 +118,8 @@ def run_coala(console_printer=None,
                 print_results=print_results,
                 cache=cache,
                 log_printer=log_printer,
-                console_printer=console_printer)
+                console_printer=console_printer,
+                debug=debug or args and args.debug)
             yielded, yielded_unfixed, results[section_name] = (
                 simplify_section_result(section_result))
 
@@ -124,7 +134,9 @@ def run_coala(console_printer=None,
         if cache:
             cache.write()
 
-        if did_nothing:
+        if CounterHandler.get_num_calls_for_level('ERROR') > 0:
+            exitcode = 1
+        elif did_nothing:
             nothing_done(log_printer)
             exitcode = 2
         elif yielded_unfixed_results:
@@ -132,6 +144,17 @@ def run_coala(console_printer=None,
         elif yielded_results:
             exitcode = 5
     except BaseException as exception:  # pylint: disable=broad-except
+        if not isinstance(exception, SystemExit):
+            if args and args.debug or (
+                    sections and sections.get('cli', {}).get('debug', False)
+            ):
+                import ipdb
+                with ipdb.launch_ipdb_on_exception():
+                    raise
+
+            if debug:
+                raise
+
         exitcode = exitcode or get_exitcode(exception, log_printer)
 
     return results, exitcode, file_dicts

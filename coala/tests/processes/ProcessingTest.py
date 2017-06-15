@@ -1,3 +1,4 @@
+import copy
 import multiprocessing
 import os
 import platform
@@ -9,7 +10,10 @@ import unittest
 
 from pyprint.ConsolePrinter import ConsolePrinter
 
+from coalib.bears.Bear import Bear
+from coalib.output.printers.LOG_LEVEL import LOG_LEVEL
 from coalib.output.printers.LogPrinter import LogPrinter
+from coalib.output.printers.ListLogPrinter import ListLogPrinter
 from coalib.processes.CONTROL_ELEMENT import CONTROL_ELEMENT
 from coalib.processes.Processing import (
     ACTIONS, autoapply_actions, check_result_ignore, create_process_group,
@@ -71,6 +75,8 @@ class ProcessingTest(unittest.TestCase):
             '.coafile'))
         self.testcode_c_path = os.path.join(os.path.dirname(config_path),
                                             'testcode.c')
+        self.unreadable_path = os.path.join(os.path.dirname(config_path),
+                                            'unreadable')
 
         self.result_queue = queue.Queue()
         self.queue = queue.Queue()
@@ -153,6 +159,65 @@ class ProcessingTest(unittest.TestCase):
         # No global bear
         self.assertEqual(len(results[2]), 0)
 
+    def test_mixed_run(self):
+        self.sections['mixed'].append(Setting('jobs', '1'))
+        log_printer = ListLogPrinter()
+        global_bears = self.global_bears['mixed']
+        local_bears = self.local_bears['mixed']
+        bears = global_bears + local_bears
+
+        results = execute_section(self.sections['mixed'],
+                                  global_bears,
+                                  local_bears,
+                                  lambda *args: self.result_queue.put(args[2]),
+                                  None,
+                                  log_printer,
+                                  console_printer=self.console_printer)
+        self.assertIn("Bears that uses raw files can't be mixed with "
+                      'Bears that uses text files. Please move the following '
+                      'bears to their own section: ' +
+                      ', '.join(bear.name for bear in bears
+                                if not bear.USE_RAW_FILES),
+                      [log.message for log in log_printer.logs])
+
+    def test_raw_run(self):
+        self.sections['raw'].append(Setting('jobs', '1'))
+        results = execute_section(self.sections['raw'],
+                                  self.global_bears['raw'],
+                                  self.local_bears['raw'],
+                                  lambda *args: self.result_queue.put(args[2]),
+                                  None,
+                                  self.log_printer,
+                                  console_printer=self.console_printer)
+        self.assertTrue(results[0])
+
+        # One file
+        self.assertEqual(len(results[1]), 1)
+        # One global bear
+        self.assertEqual(len(results[2]), 1)
+
+        # The only file tested should be the unreadable file
+        # HACK: The real test of seeing the content of the array
+        #       is the same as expected will fail on Windows
+        #       due to a problem with how coala handles path.
+        self.assertEqual(self.unreadable_path.lower(),
+                         results[1].keys()[0].lower())
+
+        # HACK: This is due to the problem with how coala handles paths
+        #       that makes it problematic for Windows compatibility
+        self.unreadable_path = results[1].keys()[0]
+
+        self.assertEqual([bear.name for bear in self.global_bears['raw']],
+                         results[2].keys())
+
+        self.assertEqual(results[1][self.unreadable_path],
+                         [Result('LocalTestRawBear', 'test msg')])
+
+        self.assertEqual(results[2][self.global_bears['raw'][0].name],
+                         [Result.from_values('GlobalTestRawBear',
+                                             'test message',
+                                             self.unreadable_path)])
+
     def test_process_queues(self):
         ctrlq = queue.Queue()
 
@@ -219,8 +284,7 @@ class ProcessingTest(unittest.TestCase):
             self.log_printer,
             self.console_printer)
 
-        self.assertEqual(self.queue.get(timeout=0), ([first_local,
-                                                      second_local,
+        self.assertEqual(self.queue.get(timeout=0), ([second_local,
                                                       third_local]))
         self.assertEqual(self.queue.get(timeout=0), ([fourth_local]))
         self.assertEqual(self.queue.get(timeout=0), ([first_global]))
@@ -328,6 +392,28 @@ class ProcessingTest(unittest.TestCase):
                        'an unknown error.'),
                       self.log_printer.log_queue.get().message)
 
+    def test_get_file_dict_allow_raw_file(self):
+        log_printer = ListLogPrinter()
+        file_dict = get_file_dict([self.unreadable_path], log_printer,
+                                  True)
+        self.assertNotEqual(file_dict, {})
+        self.assertEqual(file_dict[self.unreadable_path], None)
+        self.assertEqual(len(log_printer.logs), 0)
+
+    def test_get_file_dict_forbid_raw_file(self):
+        log_printer = ListLogPrinter()
+        file_dict = get_file_dict([self.unreadable_path], log_printer,
+                                  False)
+        self.assertEqual(file_dict, {})
+        self.assertEqual(len(log_printer.logs), 1)
+
+        log_message = log_printer.logs[0]
+        self.assertEqual(("Failed to read file '{}'. It seems to contain "
+                          'non-unicode characters. Leaving it '
+                          'out.'.format(self.unreadable_path)),
+                         log_message.message)
+        self.assertEqual(log_message.log_level, LOG_LEVEL.WARNING)
+
     def test_simplify_section_result(self):
         results = (True,
                    {'file1': [Result('a', 'b')], 'file2': None},
@@ -357,7 +443,7 @@ class ProcessingTest(unittest.TestCase):
         self.assertTrue(check_result_ignore(result, ranges))
 
         result1 = Result.from_values('origin', 'message', file='e')
-        self.assertFalse(check_result_ignore(result1, ranges))
+        self.assertTrue(check_result_ignore(result1, ranges))
 
         ranges = [(['something', 'else', 'not origin'],
                    SourceRange.from_values('e', 1, 1, 2, 2))]
@@ -492,6 +578,46 @@ class ProcessingTest(unittest.TestCase):
         self.assertEqual(source_range.start.column, 1)
         self.assertEqual(source_range.end.line, 1)
         self.assertEqual(source_range.end.column, 14)
+
+    def test_loaded_bears_with_error_result(self):
+        class BearWithMissingPrerequisites(Bear):
+
+            def __init__(self, section, queue, timeout=0.1):
+                Bear.__init__(self, section, queue, timeout)
+
+            def run(self):
+                return []
+
+            @classmethod
+            def check_prerequisites(cls):
+                return False
+
+        multiprocessing.Queue()
+        tmp_local_bears = copy.copy(self.local_bears['cli'])
+        tmp_local_bears.append(BearWithMissingPrerequisites)
+        cache = FileCache(self.log_printer,
+                          'coala_test_on_error',
+                          flush_cache=True)
+        results = execute_section(self.sections['cli'],
+                                  [],
+                                  tmp_local_bears,
+                                  lambda *args: self.result_queue.put(args[2]),
+                                  cache,
+                                  self.log_printer,
+                                  console_printer=self.console_printer)
+        self.assertEqual(len(cache.data), 0)
+
+        cache = FileCache(self.log_printer,
+                          'coala_test_on_error',
+                          flush_cache=False)
+        results = execute_section(self.sections['cli'],
+                                  [],
+                                  self.local_bears['cli'],
+                                  lambda *args: self.result_queue.put(args[2]),
+                                  cache,
+                                  self.log_printer,
+                                  console_printer=self.console_printer)
+        self.assertGreater(len(cache.data), 0)
 
 
 class ProcessingTest_GetDefaultActions(unittest.TestCase):

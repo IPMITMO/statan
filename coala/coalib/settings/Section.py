@@ -5,7 +5,6 @@ from collections import OrderedDict
 
 from coalib.collecting.Collectors import collect_registered_bears_dirs
 from coala_utils.decorators import enforce_signature, generate_repr
-from coala_utils.string_processing import unescape
 from coalib.misc.DictUtilities import update_ordered_dict_key
 from coalib.settings.Setting import Setting, path_list
 from coalib.parsing.Globbing import glob_escape
@@ -207,8 +206,6 @@ class Section:
         if res is not None:
             if res.to_append and self.defaults and res.key in self.defaults:
                 res.value = self.defaults[key]._value + ', ' + res._value
-                res.to_append = False
-                return res
             res.to_append = False
             return res
 
@@ -318,12 +315,32 @@ class Section:
         >>> section.defaults.name
         'all'
 
+        This works case insensitive. The key of the sections dict
+        is expected to be lowered though!
+
+        >>> sections = {'c': Section('C'), 'cpp': Section('Cpp'),
+        ...             'c.something': Section('C.something')}
+        >>> section = Section('C.something')
+        >>> section.set_default_section(sections)
+        >>> section.defaults.name
+        'C'
+        >>> section = Section('C.SOMETHING.else')
+        >>> section.set_default_section(sections)
+        >>> section.defaults.name
+        'C.something'
+        >>> section = Section('Cpp.SOMETHING.else')
+        >>> section.set_default_section(sections)
+        >>> section.defaults.name
+        'Cpp'
+
         :param sections:     A dictionary of sections.
         :param section_name: Optional section name argument to find the default
                              section for. If not given then use member section
                              name.
         """
-        default_section = '.'.join((section_name or self.name).split('.')[:-1])
+        default_section = '.'.join(
+            (section_name or self.name).split('.')[:-1]
+        ).lower()
 
         if default_section:
             if default_section in sections:

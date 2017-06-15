@@ -1,11 +1,23 @@
+from collections import defaultdict
+import datetime
+from io import BytesIO
 import multiprocessing
 import unittest
 from os.path import abspath, exists, isfile, join, getmtime
-import requests_mock
 import shutil
-from time import sleep
 
+from freezegun import freeze_time
+
+import requests
+import requests_mock
+import urllib3
+
+from coalib.bearlib.aspects.collections import aspectlist
+from coalib.bearlib.aspects.Metadata import CommitMessage
 from coalib.bears.Bear import Bear
+from coalib.bears.BEAR_KIND import BEAR_KIND
+from coalib.bears.GlobalBear import GlobalBear
+from coalib.bears.LocalBear import LocalBear
 from coalib.results.Result import Result
 from coalib.output.printers.LOG_LEVEL import LOG_LEVEL
 from coalib.processes.communication.LogMessage import LogMessage
@@ -18,6 +30,10 @@ class BadTestBear(Bear):
     def __init__(self, section, queue):
         Bear.__init__(self, section, queue)
 
+    @staticmethod
+    def kind():
+        return BEAR_KIND.GLOBAL
+
     def run(self):
         raise NotImplementedError
 
@@ -28,6 +44,10 @@ class TestBear(Bear):
 
     def __init__(self, section, queue):
         Bear.__init__(self, section, queue)
+
+    @staticmethod
+    def kind():
+        return BEAR_KIND.GLOBAL
 
     def run(self):
         self.print('set', 'up', delimiter='=')
@@ -91,7 +111,26 @@ class DependentBear(Bear):
         yield w
 
 
-class BearTest(unittest.TestCase):
+class aspectsTestBear(Bear, aspects={
+        'detect': [CommitMessage.Shortlog.ColonExistence],
+        'fix': [CommitMessage.Shortlog.TrailingPeriod],
+}):
+    pass
+
+
+class aspectsDetectOnlyTestBear(Bear, aspects={
+        'detect': [CommitMessage.Shortlog.ColonExistence],
+}):
+    pass
+
+
+class aspectsFixOnlyTestBear(Bear, aspects={
+        'fix': [CommitMessage.Shortlog.TrailingPeriod],
+}):
+    pass
+
+
+class BearTestBase(unittest.TestCase):
 
     def setUp(self):
         self.queue = multiprocessing.Queue()
@@ -102,10 +141,52 @@ class BearTest(unittest.TestCase):
         if exists(self.uut.data_dir):
             shutil.rmtree(self.uut.data_dir)
 
+
+class BearTest(BearTestBase):
+
+    def test_default_aspects(self):
+        assert type(Bear.aspects) is defaultdict
+        assert type(Bear.aspects['detect']) is aspectlist
+        assert type(Bear.aspects['fix']) is aspectlist
+        assert Bear.aspects['detect'] == Bear.aspects['fix'] == []
+
+    def test_no_fix_aspects(self):
+        assert type(aspectsDetectOnlyTestBear.aspects) is defaultdict
+        assert type(aspectsDetectOnlyTestBear.aspects['detect']) is aspectlist
+        assert type(aspectsDetectOnlyTestBear.aspects['fix']) is aspectlist
+        assert aspectsDetectOnlyTestBear.aspects['fix'] == []
+        assert (aspectsDetectOnlyTestBear.aspects['detect'] ==
+                [CommitMessage.Shortlog.ColonExistence])
+        assert (CommitMessage.Shortlog.ColonExistence in
+                aspectsDetectOnlyTestBear.aspects['detect'])
+
+    def test_no_detect_aspects(self):
+        assert type(aspectsFixOnlyTestBear.aspects) is defaultdict
+        assert type(aspectsFixOnlyTestBear.aspects['detect']) is aspectlist
+        assert type(aspectsFixOnlyTestBear.aspects['fix']) is aspectlist
+        assert aspectsFixOnlyTestBear.aspects['detect'] == []
+        assert (aspectsFixOnlyTestBear.aspects['fix'] ==
+                [CommitMessage.Shortlog.TrailingPeriod])
+        assert (CommitMessage.Shortlog.TrailingPeriod in
+                aspectsFixOnlyTestBear.aspects['fix'])
+
+    def test_detect_and_fix_aspects(self):
+        assert type(aspectsTestBear.aspects) is defaultdict
+        assert type(aspectsTestBear.aspects['detect']) is aspectlist
+        assert type(aspectsTestBear.aspects['fix']) is aspectlist
+        assert aspectsTestBear.aspects == {
+            'detect': [CommitMessage.Shortlog.ColonExistence],
+            'fix': [CommitMessage.Shortlog.TrailingPeriod],
+        }
+        assert (CommitMessage.Shortlog.ColonExistence in
+                aspectsTestBear.aspects['detect'])
+        assert (CommitMessage.Shortlog.TrailingPeriod in
+                aspectsTestBear.aspects['fix'])
+
     def test_simple_api(self):
         self.assertRaises(TypeError, TestBear, self.settings, 2)
         self.assertRaises(TypeError, TestBear, None, self.queue)
-        self.assertRaises(NotImplementedError, self.uut.kind)
+        self.assertRaises(NotImplementedError, Bear.kind)
 
         base = Bear(self.settings, None)
         self.assertRaises(NotImplementedError, base.run)
@@ -128,6 +209,26 @@ class BearTest(unittest.TestCase):
                            'information.')
         # debug message contains custom content, dont test this here
         self.queue.get()
+
+    def test_print_filename_LocalBear(self):
+        self.uut = LocalBear(self.settings, self.queue)
+        self.uut.execute('filename.py', 'file\n')
+        self.check_message(LOG_LEVEL.DEBUG)
+        # Fails because of no run() implementation
+        self.check_message(LOG_LEVEL.WARNING,
+                           'Bear LocalBear failed to run on file filename.py. '
+                           'Take a look at debug messages (`-V`) for further '
+                           'information.')
+
+    def test_print_no_filename_GlobalBear(self):
+        self.uut = GlobalBear(None, self.settings, self.queue)
+        self.uut.execute()
+        self.check_message(LOG_LEVEL.DEBUG)
+        # Fails because of no run() implementation
+        self.check_message(LOG_LEVEL.WARNING,
+                           'Bear GlobalBear failed to run. Take a look at '
+                           'debug messages (`-V`) for further '
+                           'information.')
 
     def test_inconvertible(self):
         self.uut = TypedTestBear(self.settings, self.queue)
@@ -231,15 +332,80 @@ class BearTest(unittest.TestCase):
         expected = Result.from_values(bear, 'test message', '/tmp/testy')
         self.assertEqual(result, expected)
 
+
+class BrokenReadHTTPResponse(BytesIO):
+
+    def __init__(self, chunks, *args, **kwargs):
+        self.read_count = 0
+        self.chunks = chunks
+
+    def read(self, *args, **kwargs):
+        # A HTTPResponse will return an empty string when you read from it
+        # after the socket has been closed.
+        if self.closed:
+            return b''
+
+        if self.read_count == len(self.chunks):
+            raise requests.exceptions.ReadTimeout('Fake read timeout')
+
+        self.read_count += 1
+        return self.chunks[self.read_count - 1]
+
+
+class BearDownloadTest(BearTestBase):
+
+    def setUp(self):
+        super().setUp()
+        self.mock_url = 'https://test.com'
+        self.filename = 'test.html'
+        self.file_location = join(self.uut.data_dir, self.filename)
+
+    def test_connection_timeout_mocked(self):
+        exc = requests.exceptions.ConnectTimeout
+        with requests_mock.Mocker() as reqmock:
+            reqmock.get(self.mock_url, exc=exc)
+            with self.assertRaisesRegex(exc, '^$'):
+                self.uut.download_cached_file(
+                    self.mock_url, self.filename)
+
+    def test_read_broken(self):
+        exc = (
+            requests.exceptions.RequestException,
+            urllib3.exceptions.ProtocolError,
+        )
+        fake_content = [b'Fake read data', b'Another line']
+        fake_content_provider = BrokenReadHTTPResponse(fake_content)
+
+        self.assertFalse(isfile(self.file_location))
+
+        with requests_mock.Mocker() as reqmock:
+            reqmock.get(self.mock_url, body=fake_content_provider)
+            with self.assertRaisesRegex(exc, 'Fake read timeout'):
+                self.uut.download_cached_file(
+                    self.mock_url, self.filename)
+
+        self.assertTrue(isfile(self.file_location))
+
+        with open(self.file_location, 'rb') as fh:
+            self.assertEqual(fh.read(), b''.join(fake_content))
+
+    def test_status_code_error(self):
+        exc = requests.exceptions.HTTPError
+        with self.assertRaisesRegex(exc, '418 Client Error'):
+            self.uut.download_cached_file(
+                'http://httpbin.org/status/418', self.filename)
+
     def test_download_cached_file(self):
         mock_url = 'https://test.com'
         mock_text = """<html>
             <p> lorem impsum dolor</p>
-        </hrml>"""
-        filename = 'test.html'
-        file_location = join(self.uut.data_dir, filename)
+        </html>"""
+        filename = self.filename
+        file_location = self.file_location
 
-        with requests_mock.Mocker() as reqmock:
+        with freeze_time('2017-01-01') as frozen_datetime, \
+                requests_mock.Mocker() as reqmock:
+
             reqmock.get(mock_url, text=mock_text)
             self.assertFalse(isfile(file_location))
             expected_filename = file_location
@@ -247,8 +413,8 @@ class BearTest(unittest.TestCase):
             self.assertTrue(isfile(join(file_location)))
             self.assertEqual(result_filename, expected_filename)
             expected_time = getmtime(file_location)
-            sleep(0.5)
 
+            frozen_datetime.tick(delta=datetime.timedelta(seconds=0.5))
             result_filename = self.uut.download_cached_file(mock_url, filename)
             self.assertEqual(result_filename, expected_filename)
             result_time = getmtime(file_location)

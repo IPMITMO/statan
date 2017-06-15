@@ -10,6 +10,7 @@ from coalib.output.printers.LogPrinter import LogPrinter
 from coalib import assert_supported_version, coala
 from pyprint.ConsolePrinter import ConsolePrinter
 from coala_utils.ContextManagers import prepare_file
+from coalib.output.Logging import configure_logging
 
 from tests.TestUtilities import execute_coala, bear_test_module
 
@@ -28,12 +29,18 @@ class coalaTest(unittest.TestCase):
             retval, stdout, stderr = execute_coala(
                              coala.main,
                              'coala', '-c', os.devnull,
+                             '--non-interactive', '--no-color',
                              '-f', re.escape(filename),
                              '-b', 'LineCountTestBear')
             self.assertIn('This file has 1 lines.',
                           stdout,
                           'The output should report count as 1 lines')
-            self.assertIn('During execution of coala', stderr)
+            self.assertEqual(1, len(stderr.splitlines()))
+            self.assertIn(
+                'LineCountTestBear: This result has no patch attached.',
+                stderr)
+            self.assertNotEqual(retval, 0,
+                                'coala must return nonzero when errors occured')
 
     @unittest.mock.patch('sys.version_info', tuple((2, 7, 11)))
     def test_python_version_27(self):
@@ -50,9 +57,10 @@ class coalaTest(unittest.TestCase):
     def test_python_version_34(self):
         assert_supported_version()
 
-    def test_did_nothing(self):
+    def test_did_nothing(self, debug=False):
         retval, stdout, stderr = execute_coala(coala.main, 'coala', '-I',
-                                               '-S', 'cli.enabled=false')
+                                               '-S', 'cli.enabled=false',
+                                               debug=debug)
         self.assertEqual(retval, 2)
         self.assertIn('Did you forget to give the `--files`', stderr)
         self.assertFalse(stdout)
@@ -60,36 +68,49 @@ class coalaTest(unittest.TestCase):
         retval, stdout, stderr = execute_coala(coala.main, 'coala', '-I',
                                                '-b', 'JavaTestBear', '-f',
                                                '*.java',
-                                               '-S', 'cli.enabled=false')
+                                               '-S', 'cli.enabled=false',
+                                               debug=debug)
         self.assertEqual(retval, 2)
         self.assertIn('Nothing to do.', stderr)
         self.assertFalse(stdout)
 
-    def test_show_all_bears(self):
+    def test_did_nothing_debug(self):
+        self.test_did_nothing(debug=True)
+
+    def test_show_all_bears(self, debug=False):
         with bear_test_module():
             retval, stdout, stderr = execute_coala(
-                coala.main, 'coala', '-B', '-I')
+                coala.main, 'coala', '-B', '-I', debug=debug)
             self.assertEqual(retval, 0)
-            # 6 bears plus 1 line holding the closing colour escape sequence.
-            self.assertEqual(len(stdout.strip().splitlines()), 7)
+            # 8 bears plus 1 line holding the closing colour escape sequence.
+            self.assertEqual(len(stdout.strip().splitlines()), 9)
             self.assertFalse(stderr)
 
-    def test_show_language_bears(self):
+    def test_show_all_bears_debug(self):
+        return self.test_show_all_bears(debug=True)
+
+    def test_show_language_bears(self, debug=False):
         with bear_test_module():
             retval, stdout, stderr = execute_coala(
-                coala.main, 'coala', '-B', '-l', 'java', '-I')
+                coala.main, 'coala', '-B', '-l', 'java', '-I', debug=debug)
             self.assertEqual(retval, 0)
             # 2 bears plus 1 line holding the closing colour escape sequence.
             self.assertEqual(len(stdout.splitlines()), 3)
             self.assertFalse(stderr)
 
-    def test_show_capabilities_with_supported_language(self):
+    def test_show_language_bears_debug(self):
+        self.test_show_language_bears(debug=True)
+
+    def test_show_capabilities_with_supported_language(self, debug=False):
         with bear_test_module():
             retval, stdout, stderr = execute_coala(
-                coala.main, 'coala', '-p', 'R', '-I')
+                coala.main, 'coala', '-p', 'R', '-I', debug=debug)
             self.assertEqual(retval, 0)
             self.assertEqual(len(stdout.splitlines()), 2)
             self.assertFalse(stderr)
+
+    def test_show_capabilities_with_supported_language_debug(self):
+        self.test_show_capabilities_with_supported_language(debug=True)
 
     @unittest.mock.patch('coalib.parsing.DefaultArgParser.get_all_bears_names')
     @unittest.mock.patch('coalib.collecting.Collectors.icollect_bears')
@@ -102,6 +123,8 @@ class coalaTest(unittest.TestCase):
                            'dependency you have installed'), stderr)
             self.assertIn('pip install "msg2"', stderr)
             self.assertFalse(stdout)
+            self.assertNotEqual(retval, 0,
+                                'coala must return nonzero when errors occured')
 
     @unittest.mock.patch('coalib.collecting.Collectors._import_bears')
     def test_unimportable_bear(self, import_fn):
@@ -124,7 +147,7 @@ class coalaTest(unittest.TestCase):
             self.assertIn('pip install "msg2"', stderr)
             self.assertIn('No bears to show.', stdout)
 
-    def test_run_coala_no_autoapply(self):
+    def test_run_coala_no_autoapply(self, debug=False):
         with bear_test_module(), \
                 prepare_file(['#fixme  '], None) as (lines, filename):
             self.assertEqual(
@@ -139,7 +162,8 @@ class coalaTest(unittest.TestCase):
                         '--apply-patches',
                         '-S', 'use_spaces=yeah'
                     ),
-                    autoapply=False
+                    autoapply=False,
+                    debug=debug
                 )[0]['cli'])
             )
 
@@ -154,6 +178,54 @@ class coalaTest(unittest.TestCase):
                         '-b', 'SpaceConsistencyTestBear',
                         '--apply-patches',
                         '-S', 'use_spaces=yeah'
-                    )
+                    ),
+                    debug=debug
                 )[0]['cli'])
             )
+
+    def test_run_coala_no_autoapply_debug(self):
+        self.test_run_coala_no_autoapply(debug=True)
+
+    def test_logged_error_causes_non_zero_exitcode(self):
+        configure_logging()
+        with bear_test_module(), \
+                prepare_file(['#fixme  '], None) as (lines, filename):
+            _, exitcode, _ = run_coala(
+                console_printer=ConsolePrinter(),
+                log_printer=LogPrinter(),
+                arg_list=(
+                    '-c', os.devnull,
+                    '-f', re.escape(filename),
+                    '-b', 'ErrorTestBear'
+                ),
+                autoapply=False
+            )
+
+            assert exitcode == 1
+
+    def test_coala_with_color(self):
+        with bear_test_module(), \
+                prepare_file(['#fixme'], None) as (lines, filename):
+            retval, stdout, stderr = execute_coala(
+                coala.main, 'coala')
+            errors = filter(bool, stderr.split('\n'))
+            # Every error message must start with characters
+            # used for coloring.
+            for err in errors:
+                self.assertNotRegex(err, '^\[WARNING\]')
+            self.assertEqual(
+                retval, 0, 'coala must return zero when there are no errors')
+
+    def test_coala_without_color(self):
+        with bear_test_module(), \
+                prepare_file(['#fixme'], None) as (lines, filename):
+
+            retval, stdout, stderr = execute_coala(
+                             coala.main, 'coala', '-N')
+            errors = filter(bool, stderr.split('\n'))
+            # Any error message must not start with characters
+            # used for coloring.
+            for err in errors:
+                self.assertRegex(err, '^\[WARNING\]')
+            self.assertEqual(
+                retval, 0, 'coala must return zero when there are no errors')

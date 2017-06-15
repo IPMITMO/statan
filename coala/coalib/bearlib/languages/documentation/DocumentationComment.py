@@ -12,6 +12,7 @@ class DocumentationComment:
     inside source-code, like position etc.
     """
     Parameter = namedtuple('Parameter', 'name, desc')
+    ExceptionValue = namedtuple('ExceptionValue', 'name, desc')
     ReturnValue = namedtuple('ReturnValue', 'desc')
     Description = namedtuple('Description', 'desc')
 
@@ -20,14 +21,19 @@ class DocumentationComment:
         """
         Instantiates a new DocumentationComment.
 
-        :param documentation: The documentation text.
-        :param language:      The language of the documention.
-        :param docstyle:      The docstyle used in the documentation.
-        :param indent:        The string of indentation used in front
-                              of the first marker of the documentation.
-        :param marker:        The three-element tuple with marker strings,
-                              that identified this documentation comment.
-        :param range:         The position range of type TextRange.
+        :param documentation:
+            The documentation text.
+        :param docstyle_definition:
+            The ``DocstyleDefinition`` instance that defines what docstyle is
+            being used in the documentation.
+        :param indent:
+            The string of indentation used in front of the first marker of the
+            documentation.
+        :param marker:
+            The three-element tuple with marker strings, that identified this
+            documentation comment.
+        :param range:
+            The position range of type ``TextRange``.
         """
         self.documentation = documentation
         self.docstyle_definition = docstyle_definition
@@ -64,31 +70,38 @@ class DocumentationComment:
         """
         if self.language == 'python' and self.docstyle == 'default':
             return self._parse_documentation_with_symbols(
-                (':param ', ':'), ':return:')
+                (':param ', ':'), (':raises ', ':'), ':return:')
         elif self.language == 'python' and self.docstyle == 'doxygen':
             return self._parse_documentation_with_symbols(
-                ('@param ', ' '), '@return ')
+                ('@param ', ' '), ('@raises ', ' '), '@return ')
         elif self.language == 'java' and self.docstyle == 'default':
             return self._parse_documentation_with_symbols(
-                ('@param  ', ' '), '@return ')
+                ('@param  ', ' '), ('@raises  ', ' '), '@return ')
+        elif self.language == 'golang' and self.docstyle == 'golang':
+            # golang does not have param, return markers
+            return self.documentation.splitlines(keepends=True)
         else:
             raise NotImplementedError(
                 'Documentation parsing for {0.language!r} in {0.docstyle!r}'
                 ' has not been implemented yet'.format(self))
 
-    def _parse_documentation_with_symbols(self, param_identifiers,
+    def _parse_documentation_with_symbols(self,
+                                          param_identifiers,
+                                          exception_identifiers,
                                           return_identifiers):
         """
-        Parses documentation based on parameter and return symbols.
+        Parses documentation based on parameter, exception and return symbols.
 
         :param param_identifiers:
             A tuple of two strings with which a parameter starts and ends.
+        :param exception_identifiers:
+            A tuple of two strings with which an exception starts and ends.
         :param return_identifiers:
             The string with which a return description starts.
         :return:
             The list of all the parsed sections of the documentation. Every
-            section is a namedtuple of either ``Description`` or ``Parameter``
-            or ``ReturnValue``.
+            section is a named tuple of either ``Description``, ``Parameter``,
+            ``ExceptionValue`` or ``ReturnValue``.
         """
         lines = self.documentation.splitlines(keepends=True)
 
@@ -105,13 +118,29 @@ class DocumentationComment:
 
             if stripped_line.startswith(param_identifiers[0]):
                 parse_mode = self.Parameter
+                # param_offset contains the starting column of param's name.
                 param_offset = line.find(
                     param_identifiers[0]) + len(param_identifiers[0])
+                # splitted contains the whole line from the param's name,
+                # which in turn is further divided into its name and desc.
                 splitted = line[param_offset:].split(param_identifiers[1], 1)
                 cur_param = splitted[0].strip()
 
                 param_desc = splitted[1]
+                # parsed section is added to the final list.
                 parsed.append(self.Parameter(name=cur_param, desc=param_desc))
+
+            elif stripped_line.startswith(exception_identifiers[0]):
+                parse_mode = self.ExceptionValue
+                exception_offset = line.find(
+                    exception_identifiers[0]) + len(exception_identifiers[0])
+                splitted = line[exception_offset:].split(
+                    exception_identifiers[1], 1)
+                cur_exception = splitted[0].strip()
+
+                exception_desc = splitted[1]
+                parsed.append(self.ExceptionValue(
+                    name=cur_exception, desc=exception_desc))
 
             elif stripped_line.startswith(return_identifiers):
                 parse_mode = self.ReturnValue
@@ -120,10 +149,19 @@ class DocumentationComment:
                 retval_desc = line[return_offset:]
                 parsed.append(self.ReturnValue(desc=retval_desc))
 
+            # These conditions will take care if the parsed section
+            # descriptions are not on the same line as that of it's
+            # name. Further, adding the parsed section to the final list.
             elif parse_mode == self.ReturnValue:
                 retval_desc += line
                 parsed.pop()
                 parsed.append(self.ReturnValue(desc=retval_desc))
+
+            elif parse_mode == self.ExceptionValue:
+                exception_desc += line
+                parsed.pop()
+                parsed.append(self.ExceptionValue(
+                    name=cur_exception, desc=exception_desc))
 
             elif parse_mode == self.Parameter:
                 param_desc += line
@@ -190,6 +228,11 @@ class DocumentationComment:
                                   section.name +
                                   docstyle_definition.metadata.param_end)
 
+            elif isinstance(section, cls.ExceptionValue):
+                assembled_doc += (docstyle_definition.metadata.exception_start
+                                  + section.name
+                                  + docstyle_definition.metadata.exception_end)
+
             elif isinstance(section, cls.ReturnValue):
                 assembled_doc += docstyle_definition.metadata.return_sep
 
@@ -213,6 +256,7 @@ class DocumentationComment:
         assembled += ''.join('\n' if line == '\n' and not self.marker[1]
                              else self.indent + self.marker[1] + line
                              for line in lines[1:])
-        return (assembled +
-                (self.indent if lines[-1][-1] == '\n' else '') +
-                self.marker[2])
+        return (assembled if self.marker[1] == self.marker[2] else
+                (assembled +
+                 (self.indent if lines[-1][-1] == '\n' else '') +
+                 self.marker[2]))

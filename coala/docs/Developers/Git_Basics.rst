@@ -19,6 +19,13 @@ this will do:
 
     $ sudo apt-get install git-all
 
+For installing Git on a Mac OS system, you can use the `homebrew <https://brew.sh/>`_ package
+manager as follows:
+
+::
+
+    $ brew install git
+
 Getting Started with coala
 --------------------------
 
@@ -37,15 +44,25 @@ To do this, you can use these to clone the coala/coala-bears repositories:
 
 ::
 
-    $ git clone https://github.com/coala/coala
+    $ git clone -o upstream https://github.com/coala/coala
 
 or
 
 ::
 
-    $ git clone https://github.com/coala/coala-bears
+    $ git clone -o upstream https://github.com/coala/coala-bears
 
-You should ideally clone the fork so that gets set to 'origin' automatically.
+.. note::
+
+    ``-o upstream`` sets the remote name of the original coala/coala-bears
+    repositories as ``upstream``.
+
+    **upstream** is just a name we used for simplicity. You can name it
+    however you want.
+
+    Don't worry if you're not familiar with what remotes are. The following
+    section will explain more about remotes.
+
 Now you have all your code on your local machine!
 
 Getting to work
@@ -55,8 +72,9 @@ First let's talk about remotes. To communicate with the outside world, git uses
 what are called remotes. These are repositories other than the one on your
 local disk which you can push your changes into (so that other people can see
 them) or pull from (so that you can get others changes).
-Now you should add a remote to your local machine so that you can ``pull`` and
-``push`` your commits. This can be simply done by using the command:
+Now you should add a remote of your fork to your local machine so that you can
+``pull`` and ``push`` your commits. This can be simply done by using the
+command:
 
 ::
 
@@ -156,6 +174,19 @@ Now that your message is written, you will have to save the file. Press escape
 to exit insert mode, and save the file (in Vim that is being done by pressing
 shift + Z twice).
 
+Run coala
+------------------
+
+Now you can check if your commit messages and code formattings
+conform with the community guidelines.
+If something goes wrong, coala will let you know. The continuous integration
+(CI) will fail if coala reports errors which means that we cannot proceed
+with merging your fix/pull request.
+
+::
+
+  $ coala
+
 Pushing the commit
 ------------------
 
@@ -233,10 +264,24 @@ local fork going out of sync with the remote repository.
 To sync your changes with the remote repository run the following commands in
 the desired branch:
 
+.. note::
+
+    This assumes that the remote ``upstream`` is the original
+    coala repository at https://github.com/coala/coala (or other,
+    like coala/coala-bears, etc.), **not your fork**.
+
+    If you have followed the steps outlined in this guide and cloned
+    the original coala repository, ``upstream`` should refer to it.
+    You can proceed to the following section without worry.
+
+    If you're unsure about this, run ``git remote -v`` to check which
+    remote points to the original repository and use that instead
+    of ``upstream`` in the following section.
+
 ::
 
-    $ git fetch origin
-    $ git rebase origin/master
+    $ git fetch upstream
+    $ git rebase upstream/master
 
 This will fetch the commits from the remote repository and will merge it into
 the branch where you are currently working, and move all of the local commits
@@ -335,6 +380,10 @@ Now, to revert the file to that revision, run the command:
 Now, after the file gets reverted back to the required revision, commit the
 changes and (force)push to the remote.
 
+If at any stage you are confused, or have an issue, do not close your Pull
+Request. Instead, contact us on gitter so that we can help you resolve your
+problem.
+
 Useful Git commands
 -------------------
 
@@ -419,3 +468,7 @@ use an interactive rebasing session. This opens an editor where you can enter
 commands (described below) for each commit to be rebased. These commands
 determine how individual commits will be transferred to the new base. You can
 also reorder the commit listing to change the order of the commits themselves.
+
+If you would like more information/commands, please use your favourite search
+engine to look for it. Git is widely used throughout the world and there are
+many good tutorials and git related Q&A threads out there.
