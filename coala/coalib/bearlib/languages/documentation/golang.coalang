@@ -1,3 +1,0 @@
-[golang]
-doc-marker1 = //\ , //\ , //\ # a space
-doc-marker2 = /*, , */

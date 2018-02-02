@@ -1,4 +1,0 @@
-[default]
-value = 42
-files = .
-bears = LineCountBear

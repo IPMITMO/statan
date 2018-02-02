@@ -1,7 +1,0 @@
-[test]
-value = 2
-[test-2]
-files = .
-bears = LineCountBear
-[test-4]
-bears = TestBear
