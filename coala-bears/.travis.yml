@@ -1,0 +1,133 @@
+sudo: required
+
+language: python
+python:
+  - 3.4
+  - 3.5
+  - 3.6.1
+
+matrix:
+  include:
+    - python: 2.7
+      env: UNSUPPORTED=true PIP_NO_COMPILE=1
+      addons: false
+      before_install: true
+      install: pip install 3to2
+      before_script: true
+      script: .ci/check_unsupported.sh
+    - python: 3.3
+      env: UNSUPPORTED=true PIP_NO_COMPILE=1
+      addons: false
+      before_install: true
+      install: true
+      before_script: true
+      script: .ci/check_unsupported.sh
+
+dist: trusty
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+      - avsm  # OPAM stable
+      - hvr-ghc  # Haskell
+    packages:
+      - cabal-install-1.24
+      - chktex
+      - clang-3.4
+      - cppcheck
+      - devscripts
+      - flawfinder
+      - gfortran
+      - ghc
+      - happy
+      - indent
+      - libblas-dev
+      - liblapack-dev
+      - libperl-critic-perl
+      - libxml2-utils
+      - luarocks
+      - menhir
+      - mono-mcs
+      - ocaml
+      - opam
+      - php-codesniffer
+      - verilator
+
+cache:
+  pip: true
+  directories:
+    - docs/_build
+    # Installed language package caches
+    - ~/.cabal
+    - ~/.ghc
+    - ~/.ghc-mod
+    - ~/R/Library
+    - ~/.julia
+    - $TRAVIS_BUILD_DIR/node_modules
+    - $TRAVIS_BUILD_DIR/.bundle
+    - $TRAVIS_BUILD_DIR/vendor
+    # coala managed data
+    - ~/nltk_data
+    - ~/.local/share/coala-bears
+    # Installed linters
+    - ~/infer-linux64-v0.7.0
+    - ~/pmd-bin-5.4.1
+    - ~/bakalint-0.4.0
+    - ~/elm-format-0.18
+    - ~/dart-sdk/bin
+    - ~/.local/tailor/
+    - ~/phpmd
+
+env:
+  global:
+    - CIRCLE_NODE_INDEX=-1  # Avoid accidentially being a CircleCI worker
+    - USE_PPAS="marutter/rdev staticfloat/juliareleases ondrej/golang"
+    - R_LIB_USER=~/R/Library
+    - LINTR_COMMENT_BOT=false
+    - PATH="/opt/cabal/1.24/bin:$PATH:$TRAVIS_BUILD_DIR/node_modules/.bin:$TRAVIS_BUILD_DIR/vendor/bin:$HOME/dart-sdk/bin:$HOME/.cabal/bin:$HOME/infer-linux64-v0.7.0/infer/bin:$HOME/pmd-bin-5.4.1/bin:$HOME/bakalint-0.4.0:$HOME/elm-format-0.18:$HOME/.local/tailor/tailor-latest/bin:$HOME/phpmd"
+
+before_install:
+  - nvm install 6.10.2
+  # Remove Ruby directive from Gemfile as this image has 2.2.5
+  - sed -i '/^ruby/d' Gemfile
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.apt.sh; fi
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.sh; fi
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.cabal.sh; fi
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.r.sh; fi
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.opam.sh; fi
+  - if [[ "$UNSUPPORTED" != true ]]; then bash .ci/deps.java.sh; fi
+  # https://github.com/coala/coala/issues/3183
+  - cp requirements.txt requirements.orig
+  - >
+    cat test-requirements.txt docs-requirements.txt
+    bear-requirements.txt >> requirements.txt
+  - sed -i '/^-r/d' requirements.txt
+
+before_script:
+  - mv requirements.orig requirements.txt
+  - .ci/deps.coala-bears.sh
+
+script:
+  - python setup.py bdist_wheel
+  - pip install $(ls ./dist/*.whl)"[alldeps]"
+  - bash .ci/tests.sh
+  # Ensure bear requirements are in sync with the bear PipRequirement
+  - .ci/generate_bear_requirements.py
+  - git diff --exit-code bear-requirements.txt Gemfile package.json
+  # https://github.com/coala/coala-bears/issues/1037
+  - >
+    if [[ "$TRAVIS_PULL_REQUEST" != "false" ]]; then
+      sed -e '/bears = GitCommitBear/d' .coafile > .coafile.new
+      mv .coafile.new .coafile
+    fi
+  - coala --non-interactive
+  - codecov
+  - python setup.py docs
+
+notifications:
+  email: false
+
+branches:
+  exclude:
+    - /^sils\//
