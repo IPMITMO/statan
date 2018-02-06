@@ -96,3 +96,33 @@ def mode_format(args, debug=False):
     _, exitcode, _ = run_coala(
             print_results=print_results_formatted, args=args, debug=debug)
     return exitcode
+
+def mode_statan(args, debug=False):
+    import json
+
+    from coalib.coala_main import run_coala
+    from coalib.output.Logging import configure_json_logging
+    from coalib.output.JSONEncoder import create_json_encoder
+
+    JSONEncoder = create_json_encoder(use_relpath=args.relpath)
+
+    results, exitcode, _ = run_coala(args=args, debug=debug)
+
+    retval = {'results': results}
+
+    if args.output:
+        filename = str(args.output[0])
+        with open(filename, 'w') as fp:
+            json.dump(retval, fp,
+                      cls=JSONEncoder,
+                      sort_keys=True,
+                      indent=2,
+                      separators=(',', ': '))
+    else:
+        print(json.dumps(retval,
+                         cls=JSONEncoder,
+                         sort_keys=True,
+                         indent=2,
+                         separators=(',', ': ')))
+
+    return 0 if args.show_bears else exitcode
