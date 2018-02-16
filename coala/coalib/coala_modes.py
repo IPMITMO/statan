@@ -99,14 +99,67 @@ def mode_format(args, debug=False):
 
 def mode_statan(args, debug=False):
     import json
+    import sys
 
     from coalib.coala_main import run_coala
     from coalib.output.Logging import configure_json_logging
     from coalib.output.JSONEncoder import create_json_encoder
+    from coalib.results.AnalyzerResult import AnalyzerResult
+    from coalib.settings.ConfigurationGathering import load_configuration
+
+    from coalib.output.database import StoreException, AnalyzerResultStore
 
     JSONEncoder = create_json_encoder(use_relpath=args.relpath)
 
     results, exitcode, _ = run_coala(args=args, debug=debug)
+
+    arg_parser=None
+    arg_list = []
+    if args is None:
+        # Note: arg_list can also be []. Hence we cannot use
+        # `arg_list = arg_list or default_list`
+        arg_list = sys.argv[1:] if arg_list is None else arg_list
+    sections, targets = load_configuration(arg_list, arg_parser=arg_parser,
+                                           args=args)
+    lan = sections['cli'].get('language', '')
+    lan_v = sections['cli'].get('language_version', '')
+    prj = sections['cli'].get('project', '')
+    prj_v = sections['cli'].get('project_version', '')
+
+    messages = results['cli']
+    analyzer_results = []
+    for message in messages:
+        dif = json.dumps(message.diffs,
+                         cls=JSONEncoder,
+                         sort_keys=True,
+                         indent=2,
+                         separators=(',', ': '))
+        ''' analyzer_results.append(AnalyzerResult(message.origin,
+            lan.value,
+            lan_v.value,
+            prj.value,
+            prj_v.value,
+            message.affected_code[0].file,
+            message.message,
+            message.severity,
+            dif,
+            message.confidence)) '''
+
+        try:
+            with AnalyzerResultStore() as result_store:
+                result_store.addResult(AnalyzerResult(message.origin,
+                    lan.value,
+                    lan_v.value,
+                    prj.value,
+                    prj_v.value,
+                    message.affected_code[0].file,
+                    message.message,
+                    message.severity,
+                    dif,
+                    message.confidence))
+                result_store.complete()
+        except StoreException as e:
+            print(e)
 
     retval = {'results': results}
 

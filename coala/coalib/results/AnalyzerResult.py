@@ -11,7 +11,7 @@ class AnalyzerResult:
                 source_file_path: str,
                 message: str,
                 severity: int=RESULT_SEVERITY.NORMAL,
-                diffs: (dict, None)=None,
+                diffs: (str, None)=None,
                 confidence: int=100,
                 ):
         origin = origin or ''
