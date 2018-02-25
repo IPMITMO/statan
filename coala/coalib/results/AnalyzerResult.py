@@ -9,7 +9,9 @@ class AnalyzerResult:
                 project_name: str,
                 project_version: str,
                 source_file_path: str,
-                message: str,
+                message: str,                
+                params: str,
+                start_line: int,
                 severity: int=RESULT_SEVERITY.NORMAL,
                 diffs: (str, None)=None,
                 confidence: int=100,
@@ -32,4 +34,6 @@ class AnalyzerResult:
             raise ValueError('Value of confidence should be between 0 and 100.')
         self.confidence = confidence
         self.diffs = diffs
+        self.params = params
+        self.start_line = start_line
         self.id = uuid.uuid4().int

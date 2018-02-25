@@ -125,6 +125,7 @@ def mode_statan(args, debug=False):
     lan_v = sections['cli'].get('language_version', '')
     prj = sections['cli'].get('project', '')
     prj_v = sections['cli'].get('project_version', '')
+    params = sections['cli'].get('params', '')
 
     messages = results['cli']
     analyzer_results = []
@@ -154,6 +155,8 @@ def mode_statan(args, debug=False):
                     prj_v.value,
                     message.affected_code[0].file,
                     message.message,
+                    params.value,
+                    message.affected_code[0].start.line,
                     message.severity,
                     dif,
                     message.confidence))
@@ -161,7 +164,7 @@ def mode_statan(args, debug=False):
         except StoreException as e:
             print(e)
 
-    retval = {'results': results}
+    ''' retval = {'results': results}
 
     if args.output:
         filename = str(args.output[0])
@@ -176,6 +179,6 @@ def mode_statan(args, debug=False):
                          cls=JSONEncoder,
                          sort_keys=True,
                          indent=2,
-                         separators=(',', ': ')))
+                         separators=(',', ': '))) '''
 
     return 0 if args.show_bears else exitcode
