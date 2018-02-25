@@ -98,4 +98,4 @@ sources/
 notpublish_tst/
 coala-venv/
 .coafile
-database.sqlite
+*.sqlite
