@@ -99,3 +99,7 @@ notpublish_tst/
 coala-venv/
 .coafile
 *.sqlite
+Statan/.vs/
+Statan/packages/
+**/obj/
+**/bin/
