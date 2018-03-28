@@ -3,6 +3,7 @@ using Statan.Core.Repository;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web.Configuration;
 
 namespace Statan.Database.Repository
 {
@@ -21,7 +22,7 @@ namespace Statan.Database.Repository
 
         public DatabaseRepository()
         {
-            this.Db = new SQLiteConnection(@"../../../database2.sqlite");
+            this.Db = new SQLiteConnection(WebConfigurationManager.AppSettings["DatabasePath"]);
         }
 
         public void Delete(T entity)
