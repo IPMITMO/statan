@@ -1,9 +1,17 @@
-﻿using System.Web.Mvc;
+﻿using Statan.Core.Repository;
+using System.Web.Mvc;
 
 namespace Statan.Web.Controllers
 {
     public class HomeController : Controller
     {
+        private readonly IAnalyzerResultRepository analyzerResultRepository;
+
+        public HomeController(IAnalyzerResultRepository analyzerResultRepository)
+        {
+            this.analyzerResultRepository = analyzerResultRepository;
+        }
+
         public ActionResult Index()
         {
             return View();

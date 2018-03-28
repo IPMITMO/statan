@@ -1,5 +1,6 @@
 ﻿using SQLite;
 using Statan.Core.Repository;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -28,9 +29,9 @@ namespace Statan.Database.Repository
             this.Db.Delete(entity);
         }
 
-        public List<T> Get()
+        public IEnumerable<T> Get()
         {
-            return this.Db.Table<T>().ToList();
+            return this.Db.Table<T>().AsEnumerable();
         }
 
         public T Get(int id)

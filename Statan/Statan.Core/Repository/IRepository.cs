@@ -4,7 +4,7 @@ namespace Statan.Core.Repository
 {
     public interface IRepository<T> where T : class, new()
     {
-        List<T> Get();
+        IEnumerable<T> Get();
         T Get(int id);
         int Insert(T entity);
         void Update(T entity);
