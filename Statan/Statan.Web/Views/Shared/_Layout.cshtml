@@ -6,6 +6,7 @@
     <title>@ViewBag.Title - Statan</title>
     @Styles.Render("~/Content/css")
     @Scripts.Render("~/bundles/modernizr")
+    <link href="~/Content/MvcGrid/mvc-grid.css" rel="stylesheet">
 </head>
 <body>
     <nav class="navbar navbar-expand-sm bg-dark navbar-dark mb-3">
@@ -34,5 +35,9 @@
     @Scripts.Render("~/bundles/jquery")
     @Scripts.Render("~/bundles/bootstrap")
     @RenderSection("scripts", required: false)
+    <script src="~/Scripts/MvcGrid/mvc-grid.js"></script>
+    <script>
+        $('.mvc-grid').mvcgrid();
+    </script>
 </body>
 </html>
