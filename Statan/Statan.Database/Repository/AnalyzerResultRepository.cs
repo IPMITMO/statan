@@ -11,10 +11,10 @@ namespace Statan.Database.Repository
     {
         public IEnumerable<AnalyzerResult> GetAll()
         {
-            return this.Get().Select(this.ToModel);
+            return this.Get().Select(ToModel);
         }
 
-        private AnalyzerResult ToModel(AnalyzerResultEntity entity)
+        private static AnalyzerResult ToModel(AnalyzerResultEntity entity)
         {
             return new AnalyzerResult
             {

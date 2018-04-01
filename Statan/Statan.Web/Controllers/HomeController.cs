@@ -24,11 +24,11 @@ namespace Statan.Web.Controllers
             return View();
         }
 
-        public ActionResult Contact()
+        [HttpGet]
+        public ActionResult Results()
         {
-            ViewBag.Message = "Your contact page.";
-
-            return View();
+            var results = this.analyzerResultRepository.GetAll();
+            return View(results);
         }
     }
 }

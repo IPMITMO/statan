@@ -1,0 +1,26 @@
+﻿@using Statan.Core.Models;
+@using Statan.Core.Services;
+@using System.Collections.Generic;
+
+@{
+    ViewBag.Title = "All results";
+}
+@model IEnumerable<AnalyzerResult>
+
+@(Html
+        .Grid(Model)
+        .Build(columns =>
+        {
+            columns.Add(model => model.Origin).Titled("Analyzer");
+            columns.Add(model => model.ProjectName).Titled("PN");
+            columns.Add(model => model.ProjectVersion).Titled("PV");
+            columns.Add(model => model.Message).Titled("Message");
+            columns.Add(model => $"{model.Language} {model.LanguageVersion}").Titled("Language");
+            columns.Add(model => model.SourceFilePath.Truncate(30)).Titled("Path");
+            columns.Add(model => model.StartLine).Titled("Line");
+            columns.Add(model => model.Params).Titled("Params");
+        })
+        .Filterable()
+        .Sortable()
+        .Pageable()
+)
