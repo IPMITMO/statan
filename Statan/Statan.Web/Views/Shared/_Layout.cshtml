@@ -6,7 +6,7 @@
     <title>@ViewBag.Title - Statan</title>
     @Styles.Render("~/Content/css")
     @Scripts.Render("~/bundles/modernizr")
-    <link href="~/Content/MvcGrid/mvc-grid.css" rel="stylesheet">
+    <link href="~/Content/MvcGrid/mvc-grid.css" rel="stylesheet">    
 </head>
 <body>
     <nav class="navbar navbar-expand-sm bg-dark navbar-dark mb-3">
@@ -16,11 +16,21 @@
                     <a class="nav-link" href="/">Home</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/Home/Results">Results</a>
+                    <a class="nav-link" href="/Home/Results">All results</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/Home/ProjectVersionResults">Project + Version</a>
                 </li>
             </ul>
         </div>
     </nav>
+
+    @Scripts.Render("~/bundles/jquery")
+    @Scripts.Render("~/bundles/bootstrap")
+    @RenderSection("scripts", required: false)
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>
+
     <div class="container body-content">
         @RenderBody()
         <hr />
@@ -29,9 +39,6 @@
         </footer>
     </div>
 
-    @Scripts.Render("~/bundles/jquery")
-    @Scripts.Render("~/bundles/bootstrap")
-    @RenderSection("scripts", required: false)
     <script src="~/Scripts/MvcGrid/mvc-grid.js"></script>
     <script>
         $('.mvc-grid').mvcgrid();
