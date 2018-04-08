@@ -2,48 +2,94 @@
 @{
     ViewBag.Title = "ProjectVersionResults";
 }
+@model Statan.Web.Models.ProjectVersionViewModel
 
 <script>
-    $.ajax({
-        type: "POST",
-        url: "/Home/NewChart",
-        contentType: "application/json; charset=utf-8",
-        dataType: "json",
-        success: function (chData) {
-            var aData = chData;
-            var aLabels = aData[0];
-            var aDatasets1 = aData[1];
-            var dataT = {
-                labels: aLabels,
-                datasets: [{
-                    label: "Count",
-                    data: aDatasets1,
-                    fill: false,
-                    backgroundColor: ["rgba(54, 162, 235, 0.2)", "rgba(255, 99, 132, 0.2)", "rgba(255, 159, 64, 0.2)", "rgba(255, 205, 86, 0.2)", "rgba(75, 192, 192, 0.2)", "rgba(153, 102, 255, 0.2)", "rgba(201, 203, 207, 0.2)"],
-                    borderColor: ["rgb(54, 162, 235)", "rgb(255, 99, 132)", "rgb(255, 159, 64)", "rgb(255, 205, 86)", "rgb(75, 192, 192)", "rgb(153, 102, 255)", "rgb(201, 203, 207)"],
-                    borderWidth: 1
-                }]
-            };
-            var ctx = $("#myChart").get(0).getContext("2d");
-            var myNewChart = new Chart(ctx, {
-                type: 'horizontalBar',
-                data: dataT,
-                options: {
-                    responsive: true,
-                    title: { display: false, text: '' },
-                    legend: { display: false, position: 'bottom' },
-                    scales: {
-                        xAxes: [{ gridLines: { display: false }, display: true, scaleLabel: { display: true, labelString: 'Messages' } }],
-                        yAxes: [{ gridLines: { display: false }, display: true, scaleLabel: { display: false, labelString: '' }, ticks: { stepSize: 50, beginAtZero: true } }]
-                    },
+    var myNewChart;
+
+    function loadResults() {
+        var project = Project.value;
+        var version = Version.value;
+
+        $.ajax({
+            type: "POST",
+            url: "/Home/NewChart?project=" + project + "&version=" + version,
+            contentType: "application/json; charset=utf-8",
+            dataType: "json",
+            success: function (chData) {
+                var aData = chData;
+                var aLabels = aData[0];
+                var aDatasets1 = aData[1];
+                var dataT = {
+                    labels: aLabels,
+                    datasets: [{
+                        label: "Count",
+                        data: aDatasets1,
+                        fill: false,
+                        backgroundColor: ["rgba(54, 162, 235, 0.2)", "rgba(255, 99, 132, 0.2)", "rgba(255, 159, 64, 0.2)", "rgba(255, 205, 86, 0.2)", "rgba(75, 192, 192, 0.2)", "rgba(153, 102, 255, 0.2)", "rgba(201, 203, 207, 0.2)"],
+                        borderColor: ["rgb(54, 162, 235)", "rgb(255, 99, 132)", "rgb(255, 159, 64)", "rgb(255, 205, 86)", "rgb(75, 192, 192)", "rgb(153, 102, 255)", "rgb(201, 203, 207)"],
+                        borderWidth: 1
+                    }]
+                };
+
+                if (myNewChart != null) {
+                    myNewChart.destroy();
                 }
+
+                $("#header").show()
+                var ctx = $("#myChart").get(0).getContext("2d");
+                
+                myNewChart = new Chart(ctx, {
+                    type: 'horizontalBar',
+                    data: dataT,
+                    options: {
+                        responsive: true,
+                        title: { display: false, text: '' },
+                        legend: { display: false, position: 'bottom' },
+                        scales: {
+                            xAxes: [{ gridLines: { display: false }, display: true, scaleLabel: { display: true, labelString: 'Messages' } }],
+                            yAxes: [{ gridLines: { display: false }, display: true, scaleLabel: { display: false, labelString: '' }, ticks: { stepSize: 50, beginAtZero: true } }]
+                        },
+                    }
+                });
+            }
+        });
+    }
+
+    $(function () {
+        $("#Project").change(function () {
+            var val = $(this).val();
+            var subItems="";
+            $.getJSON("@Url.Action("GetProjectVersions", "Home")", {projectName:val} ,function (data) {
+              $.each(data,function(index,item){
+                subItems+="<option value='"+item.Value+"'>"+item.Text+"</option>"
+              });
+              $("#Version").html(subItems)
             });
-        }
+        });
     });
 </script>
 
 <div>
-    <div class="text-center font-weight-bold">Results of specified project and version</div>
+    @using (Html.BeginForm())
+    {
+    <span>
+        @Html.DropDownListFor(x => x.Project, new SelectList(Model.Projects, "Value", "Text"), "Project: ")
+    </span>
+    <span>
+        @Html.DropDownListFor(x => x.Version, new SelectList(Enumerable.Empty<SelectListItem>(), "Value", "Text"), "Version: ")
+    </span>
+    <span>
+        <button type="button" onclick="loadResults(Project.Value, Version.Value)">View</button>
+    </span>
+    }
+</div>
+<div>
+    <div style="display:none" 
+         class="text-center font-weight-bold"
+         id="header">
+        Results of specified project and version
+    </div>
 </div>
 <div Style="font-family: Corbel; font-size: small ;text-align:center " class="row">
     <div style="width:100%;height:100%">

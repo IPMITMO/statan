@@ -1,14 +1,18 @@
-﻿using Statan.Core.Repository;
+﻿using System;
+using Statan.Core.Repository;
 using System.Collections.Generic;
 using System.Data;
 using System.Web.Mvc;
 using System.Linq;
+using Statan.Web.Models;
 
 namespace Statan.Web.Controllers
 {
     public class HomeController : Controller
     {
         private readonly IAnalyzerResultRepository analyzerResultRepository;
+
+        private static Dictionary<string, List<string>> projectVersions;
 
         public HomeController(IAnalyzerResultRepository analyzerResultRepository)
         {
@@ -23,7 +27,26 @@ namespace Statan.Web.Controllers
         [HttpGet]
         public ActionResult ProjectVersionResults()
         {
-            return View();
+            var results = this.analyzerResultRepository.GetAll().ToList();
+
+            var projects = results.GroupBy(x => x.ProjectName);
+            projectVersions = projects
+                .ToDictionary(k => k.Key, v => v.Select(x => x.ProjectVersion).Distinct().ToList());
+
+            var projectVersionsModel = new ProjectVersionViewModel
+            {
+                Projects = projects.Select(x => new SelectListItem { Value = x.Key, Text = x.Key })
+            };
+
+            return View(projectVersionsModel);
+        }
+
+        public ActionResult GetProjectVersions(string projectName)
+        {
+            var versions = projectVersions[projectName]
+                .Select(x => new SelectListItem { Text = x, Value = x});
+
+            return Json(versions, JsonRequestBehavior.AllowGet);
         }
 
 
@@ -35,15 +58,19 @@ namespace Statan.Web.Controllers
         }
 
         [HttpPost]
-        public JsonResult NewChart()
+        [Route("Home/NewChart")]
+        public JsonResult NewChart(string project, string version)
         {
             var results = this.analyzerResultRepository.GetAll()
-                .Where(x => x.ProjectName == "thefuck");
+                .Where(x => string.Equals(x.ProjectName, project, StringComparison.InvariantCultureIgnoreCase) 
+                    && x.ProjectVersion == version);
 
             //Creating data  
             DataTable dt = new DataTable();
-            dt.Columns.Add("Analyzer", System.Type.GetType("System.String"));
-            dt.Columns.Add("Messages", System.Type.GetType("System.Int32"));
+            dt.Columns.Add("Analyzer", Type.GetType("System.String"));
+            dt.Columns.Add("Messages", Type.GetType("System.Int32"));
+
+            var test = results.GroupBy(x => x.Origin).ToList();
 
             foreach (var g in results.GroupBy(x => x.Origin))
             {
