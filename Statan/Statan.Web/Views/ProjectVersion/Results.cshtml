@@ -1,6 +1,6 @@
 ﻿
 @{
-    ViewBag.Title = "ProjectVersionResults";
+    ViewBag.Title = "Project + Version results";
 }
 @model Statan.Web.Models.ProjectVersionViewModel
 
@@ -13,7 +13,7 @@
 
         $.ajax({
             type: "POST",
-            url: "/Home/NewChart?project=" + project + "&version=" + version,
+            url: "/ProjectVersion/NewChart?project=" + project + "&version=" + version,
             contentType: "application/json; charset=utf-8",
             dataType: "json",
             success: function (chData) {
@@ -60,7 +60,7 @@
         $("#Project").change(function () {
             var val = $(this).val();
             var subItems="";
-            $.getJSON("@Url.Action("GetProjectVersions", "Home")", {projectName:val} ,function (data) {
+            $.getJSON("@Url.Action("GetProjectVersions", "ProjectVersion")", {projectName:val} ,function (data) {
               $.each(data,function(index,item){
                 subItems+="<option value='"+item.Value+"'>"+item.Text+"</option>"
               });
