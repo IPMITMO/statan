@@ -8,13 +8,13 @@ using System.Web.Mvc;
 
 namespace Statan.Web.Controllers
 {
-    public class ProjectVersionController : Controller
+    public class ProjectAnalyzerController : Controller
     {
         private readonly IAnalyzerResultRepository analyzerResultRepository;
 
-        private static Dictionary<string, List<string>> projectVersions;
+        private static Dictionary<string, List<string>> projectAnalyzers;
 
-        public ProjectVersionController(IAnalyzerResultRepository analyzerResultRepository)
+        public ProjectAnalyzerController(IAnalyzerResultRepository analyzerResultRepository)
         {
             this.analyzerResultRepository = analyzerResultRepository;
         }
@@ -25,41 +25,41 @@ namespace Statan.Web.Controllers
             var results = this.analyzerResultRepository.GetAll().ToList();
 
             var projects = results.GroupBy(x => x.ProjectName);
-            projectVersions = projects
-                .ToDictionary(k => k.Key, v => v.Select(x => x.ProjectVersion).Distinct().ToList());
+            projectAnalyzers = projects
+                .ToDictionary(k => k.Key, v => v.Select(x => x.Origin).Distinct().ToList());
 
-            var projectVersionsModel = new ProjectVersionViewModel
+            var projectAnalyzersModel = new ProjectAnalyzerViewModel
             {
                 Projects = projects.Select(x => new SelectListItem { Value = x.Key, Text = x.Key })
             };
 
-            return View(projectVersionsModel);
+            return View(projectAnalyzersModel);
         }
 
-        public ActionResult GetProjectVersions(string projectName)
+        public ActionResult GetProjectAnalyzers(string projectName)
         {
-            var versions = projectVersions[projectName]
+            var analyzers = projectAnalyzers[projectName]
                 .Select(x => new SelectListItem { Text = x, Value = x });
 
-            return Json(versions, JsonRequestBehavior.AllowGet);
+            return Json(analyzers, JsonRequestBehavior.AllowGet);
         }
 
         [HttpPost]
-        public JsonResult NewChart(string project, string version)
+        public JsonResult NewChart(string project, string analyzer)
         {
             var results = this.analyzerResultRepository.GetAll()
                 .Where(x => string.Equals(x.ProjectName, project, StringComparison.InvariantCultureIgnoreCase)
-                    && x.ProjectVersion == version);
+                    && x.Origin == analyzer);
 
             //Creating data  
             DataTable dt = new DataTable();
-            dt.Columns.Add("Analyzer", Type.GetType("System.String"));
+            dt.Columns.Add("Version", Type.GetType("System.String"));
             dt.Columns.Add("Messages", Type.GetType("System.Int32"));
-            
-            foreach (var g in results.GroupBy(x => x.Origin))
+
+            foreach (var g in results.GroupBy(x => x.ProjectVersion))
             {
                 DataRow dr = dt.NewRow();
-                dr["Analyzer"] = g.Key;
+                dr["Version"] = g.Key;
                 dr["Messages"] = g.Count();
                 dt.Rows.Add(dr);
             }
