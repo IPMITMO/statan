@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1" MembersFormat="NameAndType">
+  <Class Name="Statan.Core.Models.AnalyzerResult">
+    <Position X="0.5" Y="0.5" Width="2" />
+    <TypeIdentifier>
+      <HashCode>AAACAAJACAAAACAACAAAAAAAAIAAAABAEAAAIAwAAAA=</HashCode>
+      <FileName>Models\AnalyzerResult.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="Statan.Core.Services.StringExtensions">
+    <Position X="2.75" Y="0.5" Width="1.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Services\StringExtensions.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Interface Name="Statan.Core.Repository.IAnalyzerResultRepository">
+    <Position X="4.75" Y="2.75" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAA=</HashCode>
+      <FileName>Repository\IAnalyzerResultRepository.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Interface Name="Statan.Core.Repository.IRepository&lt;T&gt;">
+    <Position X="4.75" Y="0.5" Width="2.75" />
+    <TypeIdentifier>
+      <HashCode>AAQAAEAAAAAAAABAAAAAAAAAAAEAAAAAAAAAAAAAAAA=</HashCode>
+      <FileName>Repository\IRepository.cs</FileName>
+    </TypeIdentifier>
+  </Interface>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

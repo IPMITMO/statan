@@ -46,5 +46,9 @@
     <Compile Include="Repository\IRepository.cs" />
     <Compile Include="Services\StringExtensions.cs" />
   </ItemGroup>
+  <ItemGroup />
+  <ItemGroup>
+    <None Include="Meta\ClassDiagram.cd" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
