@@ -75,5 +75,38 @@ namespace Statan.Web.Controllers
             //Source data returned as JSON  
             return Json(iData, JsonRequestBehavior.AllowGet);
         }
+
+        [HttpPost]
+        public JsonResult BanditChart(string project, string version)
+        {
+            var results = this.analyzerResultRepository.GetAll()
+                .Where(x => string.Equals(x.ProjectName, project, StringComparison.InvariantCultureIgnoreCase)
+                    && x.ProjectVersion == version
+                    && x.Origin == "BanditBear");
+
+            //Creating data  
+            DataTable dt = new DataTable();
+            dt.Columns.Add("Code", Type.GetType("System.String"));
+            dt.Columns.Add("Messages", Type.GetType("System.Int32"));
+
+            foreach (var g in results.GroupBy(x => x.Params))
+            {
+                DataRow dr = dt.NewRow();
+                dr["Code"] = g.Key;
+                dr["Messages"] = g.Count();
+                dt.Rows.Add(dr);
+            }
+
+            //Looping and extracting each DataColumn to List<Object>  
+            List<object> iData = new List<object>();
+            foreach (DataColumn dc in dt.Columns)
+            {
+                List<object> x = new List<object>();
+                x = (from DataRow drr in dt.Rows select drr[dc.ColumnName]).ToList();
+                iData.Add(x);
+            }
+            //Source data returned as JSON  
+            return Json(iData, JsonRequestBehavior.AllowGet);
+        }
     }
 }
